@@ -1,0 +1,75 @@
+# .circleci/config.yml
+version: 2.1
+
+jobs:
+  build_and_test:
+    docker:
+      - image: cimg/node:20.12.2 # 最新の安定版Node.jsイメージを使用
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: npm install
+
+      - run:
+          name: Run Unit Tests
+          command: npm run test
+
+      - run:
+          name: Run Linting
+          command: npm run lint
+
+  build_production:
+    docker:
+      - image: cimg/node:20.12.2
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: npm install
+
+      - run:
+          name: Build Production (Feature Flag OFF)
+          command: |
+            echo "VITE_FEATURE_NEW_BUTTON=false" > .env.production
+            npm run build -- --mode production
+          # productionモードでビルドし、環境変数VITE_FEATURE_NEW_BUTTONをfalseに設定
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist # Viteのデフォルトのビルド出力ディレクトリ
+
+  build_development:
+    docker:
+      - image: cimg/node:20.12.2
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: npm install
+
+      - run:
+          name: Build Development (Feature Flag ON)
+          command: |
+            echo "VITE_FEATURE_NEW_BUTTON=true" > .env.development
+            npm run build -- --mode development
+          # developmentモードでビルドし、環境変数VITE_FEATURE_NEW_BUTTONをtrueに設定
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist # Viteのデフォルトのビルド出力ディレクトリ
+
+
+workflows:
+  version: 2
+  build_test_and_deploy:
+    jobs:
+      - build_and_test
+
+      - build_production:
+          requires:
+            - build_and_test # テストが成功したら本番ビルドを実行
+
+      - build_development:
+          requires:
+            - build_and_test # テストが成功したら開発ビルドを実行
